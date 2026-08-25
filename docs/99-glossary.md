@@ -84,6 +84,7 @@
 | `P1001: can't reach database` | Postgres not running |
 | Route returns `404` but the code looks right | Controller missing from the module's `controllers` array |
 | `/users/me` hits `findOne()` with `id="me"` | `@Get(':id')` declared above `@Get('me')` |
+| `Added the required column … not possible if the table is not empty` | New required column, existing rows — use `?` or `@default` |
 
 ---
 

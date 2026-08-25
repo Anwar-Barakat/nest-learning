@@ -51,6 +51,117 @@ One file replaces both the migration **and** the model. You edit the schema, the
 
 ---
 
+## Adding a column to an existing table
+
+Three steps. **Never write the SQL by hand.**
+
+### 1 — Edit the schema
+
+```prisma
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("user")   // ← new column
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+### 2 — Generate and apply the migration
+
+```bash
+npx prisma migrate dev --name add_user_role
+```
+
+That one command does four things:
+
+1. Diffs your schema against the database
+2. Writes `prisma/migrations/<timestamp>_add_user_role/migration.sql`
+3. Applies it
+4. Regenerates the typed client
+
+### 3 — There is no step 3
+
+No model file to update. `user.role` autocompletes immediately.
+
+In Laravel you would write the migration **and** update `$fillable`. Prisma generates both from the schema.
+
+---
+
+## ⚠️ Required columns on a table that already has rows
+
+A new **required** column has no value for existing rows, so the database refuses.
+
+Your own repo has the warning:
+
+```sql
+-- prisma/migrations/20260824174904_add_password/migration.sql
+/*
+  Warnings:
+  - Added the required column `password` to the `User` table without a
+    default value. This is not possible if the table is not empty.
+*/
+ALTER TABLE "User" ADD COLUMN "password" TEXT NOT NULL;
+```
+
+It succeeded **only because the table was empty**. With one row of data it would have failed.
+
+Three ways out:
+
+| Option | Schema | When |
+|--------|--------|------|
+| Make it optional | `bio String?` | The value may genuinely be absent |
+| Give it a default | `role String @default("user")` | Every row can share a sensible value |
+| Two-step backfill | see below | Every row needs a *different* value |
+
+### The two-step backfill
+
+When there is no sensible default:
+
+```prisma
+phone String?          // migration 1 — optional
+```
+```bash
+npx prisma migrate dev --name add_phone_optional
+```
+
+Backfill the values, then:
+
+```prisma
+phone String           // migration 2 — now required
+```
+```bash
+npx prisma migrate dev --name make_phone_required
+```
+
+Same pattern as Laravel: `->nullable()`, backfill, then a second migration to `->nullable(false)`.
+
+---
+
+## ⚠️ Renaming a column destroys data
+
+Prisma diffs **state**, not intent. Rename `name` to `fullName` and it sees *"drop `name`, add `fullName`"* — every value is lost.
+
+Prisma prompts before a destructive change. **Read those prompts.** To rename safely, edit the generated SQL to use `ALTER TABLE "User" RENAME COLUMN "name" TO "fullName";` before applying.
+
+Laravel is explicit here (`$table->renameColumn()`), so this is a genuine difference in mental model.
+
+---
+
+## `migrate dev` vs `db push`
+
+| Command | Migration file | Use for |
+|---------|----------------|---------|
+| `prisma migrate dev` | ✅ created | Anything you intend to keep |
+| `prisma db push` | ❌ none | Throwaway prototyping only |
+| `prisma migrate deploy` | applies existing | Production / CI |
+
+`db push` syncs the schema straight to the database with no history. Convenient early on, but you end up with a database that no migration file describes and no way to reproduce it. **Default to `migrate dev`.**
+
+---
+
 ## PrismaService
 
 ```ts
