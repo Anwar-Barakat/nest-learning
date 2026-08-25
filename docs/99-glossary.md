@@ -82,6 +82,8 @@
 | `500` on `/users/abc` | Missing `ParseIntPipe` |
 | `column does not exist` | Schema edited without `prisma migrate dev` |
 | `P1001: can't reach database` | Postgres not running |
+| Route returns `404` but the code looks right | Controller missing from the module's `controllers` array |
+| `/users/me` hits `findOne()` with `id="me"` | `@Get(':id')` declared above `@Get('me')` |
 
 ---
 

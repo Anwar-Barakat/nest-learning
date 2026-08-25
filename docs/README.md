@@ -61,5 +61,6 @@ Added as we build them:
 - Exception filters — one place to map Prisma errors to HTTP codes
 - Interceptors — response shaping, logging
 - `@Public()` + `Reflector` — custom metadata
+- `RolesGuard` + `@Roles()` — authorization (needs a `role` column first)
 - Testing — `Test.createTestingModule`
 - Swagger

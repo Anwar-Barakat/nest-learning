@@ -21,7 +21,75 @@ export class UsersController {
 }
 ```
 
-There is no route file to keep in sync. The tradeoff: no `php artisan route:list` — but Nest logs every mapped route at startup.
+There is no route file to keep in sync.
+
+**Full path = `@Controller` prefix + method decorator path.** `@Controller('users')` on its own creates no routes — it only sets the prefix. The method decorators create the endpoints.
+
+---
+
+## ⚠️ Route order matters
+
+Nest matches **top to bottom, first match wins**. A parameter route will swallow any literal path declared below it:
+
+```ts
+// ❌ broken
+@Get(':id')  findOne() {}   // catches EVERYTHING, including "me"
+@Get('me')   me() {}        // never reached
+
+// ✅ specific paths first
+@Get('me')   me() {}
+@Get(':id')  findOne() {}
+```
+
+There is no error — `/users/me` simply lands in `findOne()` with `id = "me"`, becomes `NaN`, and fails in Prisma as a `500`.
+
+Same rule as Laravel's route file, but governed by **method order inside the class** instead of line order in `api.php`.
+
+---
+
+## ⚠️ The controller must be registered
+
+Perfect decorators do nothing unless the module lists the controller:
+
+```ts
+// users.module.ts
+@Module({
+  controllers: [UsersController],   // ← without this, no routes exist
+  providers: [UsersService],
+})
+```
+
+No error, no warning — the endpoints just 404. This is the equivalent of a Laravel route file never being loaded.
+
+---
+
+## Your `route:list`
+
+Nest prints every mapped route at startup:
+
+```
+[RoutesResolver] UsersController {/users}:
+[RouterExplorer] Mapped {/users, POST} route
+[RouterExplorer] Mapped {/users, GET} route
+[RouterExplorer] Mapped {/users/:id, GET} route
+[RouterExplorer] Mapped {/users/:id, DELETE} route
+[RoutesResolver] AuthController {/auth}:
+[RouterExplorer] Mapped {/auth/login, POST} route
+[RouterExplorer] Mapped {/auth/me, GET} route
+```
+
+If a route you expect is missing from that list, it is not registered — check the module's `controllers` array first.
+
+---
+
+## Global prefix
+
+```ts
+// main.ts
+app.setGlobalPrefix('api');   // → /api/users, /api/auth/login
+```
+
+Laravel's `Route::prefix('api')` around the whole file. This project does not use it — routes sit at the root.
 
 ---
 

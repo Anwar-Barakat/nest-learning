@@ -11,6 +11,50 @@ You write the strategy once and apply it anywhere, with no repeated logic.
 
 ---
 
+## What a guard actually is
+
+Underneath, a guard is just a class with **one method that returns a boolean**:
+
+```ts
+interface CanActivate {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean>;
+}
+```
+
+That is the entire contract:
+
+| Returns | Result |
+|---------|--------|
+| `true` | Request continues to the controller |
+| `false` | **403 Forbidden** |
+| throws | That exception — `AuthGuard` throws **401 Unauthorized** |
+
+### Passport is optional
+
+Guards have nothing to do with Passport. You can write one by hand:
+
+```ts
+@Injectable()
+export class ApiKeyGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    return request.headers['x-api-key'] === process.env.API_KEY;
+  }
+}
+```
+
+```ts
+@UseGuards(ApiKeyGuard)
+@Get('internal')
+internal() { ... }
+```
+
+No strategy, no Passport. **Passport only earns its place when verification is complicated** — JWTs, OAuth, sessions. For a simple check, a plain guard is less code.
+
+This is why `JwtAuthGuard` is empty: `AuthGuard('jwt')` already implements `canActivate()` for you, and delegates the hard part to the strategy.
+
+---
+
 ## The Strategy — how
 
 ```ts
@@ -124,6 +168,48 @@ create(@Body() dto: CreateUserDto) {   // before you have an account
 ```
 
 Most production apps go **global guard + a `@Public()` escape hatch**. Reasoning: with per-route guards, forgetting one silently exposes an endpoint. With a global guard, forgetting to mark a route public locks it — loudly and safely. Default to closed.
+
+---
+
+## Guards do two jobs
+
+Guards cover **both** halves of access control:
+
+| Job | Question | Example |
+|-----|----------|---------|
+| **Authentication** | Who are you? | `JwtAuthGuard` — is this token valid? |
+| **Authorization** | Are you allowed? | `RolesGuard` — are you an admin? |
+
+Laravel splits these across two middleware. Nest calls both of them guards.
+
+```php
+// Laravel
+->middleware(['auth:api', 'can:delete-users']);
+//              ↑ authn        ↑ authz
+```
+
+```ts
+// NestJS
+@UseGuards(JwtAuthGuard, RolesGuard)
+```
+
+### Guards run left to right
+
+```ts
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
+@Delete(':id')
+remove(@Param('id') id: number) { ... }
+```
+
+1. `JwtAuthGuard` runs first — verifies the token, sets `request.user`
+2. `RolesGuard` runs second — reads `request.user.role`
+
+**Order matters.** `RolesGuard` cannot check a role until something has authenticated the user. Any guard returning `false` stops the chain immediately — later guards never run.
+
+This is also why `validate()` returning the **whole user** matters: `RolesGuard` needs `user.role` to be there.
+
+> ⚠️ **Not in this project yet.** `RolesGuard` needs a `role` column on the `User` model, which the schema does not have. Building it teaches `SetMetadata` + `Reflector` — custom metadata, the last major Nest primitive unused here.
 
 ---
 
