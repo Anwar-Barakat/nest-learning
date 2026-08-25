@@ -1,17 +1,21 @@
-import { Controller, Post } from '@nestjs/common';
-<<<<<<<< HEAD:src/auth/auth.controller.ts
-import { LoginDto } from '../users/dto/login.dto';
-========
->>>>>>>> 9d8fd1e (feat: implement authentication service and controller with JWT support):src/users/auth/auth.controller.ts
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto } from '../dto/login.dto';
+import { LoginDto } from '../users/dto/login.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('login')
-  login(dto: LoginDto) {
+  login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  me(@CurrentUser() user: unknown) {
+    return user;
   }
 }
