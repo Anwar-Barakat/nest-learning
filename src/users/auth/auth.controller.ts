@@ -1,8 +1,4 @@
 import { Controller, Post } from '@nestjs/common';
-<<<<<<<< HEAD:src/auth/auth.controller.ts
-import { LoginDto } from '../users/dto/login.dto';
-========
->>>>>>>> 9d8fd1e (feat: implement authentication service and controller with JWT support):src/users/auth/auth.controller.ts
 import { AuthService } from './auth.service';
 import { LoginDto } from '../dto/login.dto';
 
