@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -25,11 +26,20 @@ export class UsersService {
     return this.prisma.user.findMany({ select: publicUserFields });
   }
 
-  findOne(id: number) {
+  // Returns null when missing. Used by JwtStrategy, where "no such user"
+  // means 401 (bad credential), not 404 (no such resource).
+  findById(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
       select: publicUserFields,
     });
+  }
+
+  // Throws 404 when missing. Used by the controller.
+  async findOne(id: number) {
+    const user = await this.findById(id);
+    if (!user) throw new NotFoundException(`User ${id} not found`);
+    return user;
   }
 
   // Deliberately returns the full row: login needs the hash to compare against.
@@ -54,10 +64,20 @@ export class UsersService {
     }
   }
 
-  remove(id: number) {
-    return this.prisma.user.delete({
-      where: { id },
-      select: publicUserFields,
-    });
+  async remove(id: number) {
+    try {
+      return await this.prisma.user.delete({
+        where: { id },
+        select: publicUserFields,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`User ${id} not found`);
+      }
+      throw error;
+    }
   }
 }
